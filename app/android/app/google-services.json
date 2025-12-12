@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "634807382528",
+    "project_id": "lh-notice-77077",
+    "storage_bucket": "lh-notice-77077.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:634807382528:android:9fe0eac46d954a4c27dee5",
+        "android_client_info": {
+          "package_name": "com.example.lh_notice"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrEJBC_ssJQfeFCO-v1HuoEZErpDG3ziI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
