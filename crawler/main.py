@@ -12,10 +12,6 @@ LH_BASE_URL = "https://www.lh.or.kr"
 BOARD_MID = "a10601020000"
 BOARD_BID = "0034"
 
-# [테스트용 키워드] 방금 확인된 공고들의 단어를 포함했습니다.
-# 테스트 후에는 원하시는 키워드(예: '조형물')로 다시 바꾸시면 됩니다.
-KEYWORDS = ['조형물', '예술', '미술', '작품', '선정', '결과', '공고','전시','상징조형물','순수창작조형물']
-
 def init_firebase():
     """Firebase 초기화"""
     if not firebase_admin._apps:
@@ -136,18 +132,17 @@ def crawl_lh_notice():
                         date_text = cell.get_text(strip=True)
                         break
 
-            # 키워드 필터링
-            if any(keyword in title for keyword in KEYWORDS):
-                results.append({
-                    'number': number,
-                    'title': title,
-                    'date': date_text,
-                    'link': final_link
-                })
+            # 모든 게시글 저장 (키워드 필터링 제거)
+            results.append({
+                'number': number,
+                'title': title,
+                'date': date_text,
+                'link': final_link
+            })
 
         # DB 저장 및 알림 시도
         if results:
-            print(f"총 {len(results)}건의 대상 게시물을 처리합니다...")
+            print(f"총 {len(results)}건의 게시물을 처리합니다...")
             db = init_firebase()
             new_count = 0
             for item in results:
@@ -155,7 +150,7 @@ def crawl_lh_notice():
                     new_count += 1
             print(f"\n=== 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
         else:
-            print("\n조건에 맞는 게시물이 없습니다.")
+            print("\n게시물이 없습니다.")
 
     except Exception as e:
         print(f"에러 발생: {e}")

@@ -2,29 +2,28 @@ name: LH Notice Crawler
 
 on:
   schedule:
-    # 매일 한국 시간 오전 9시에 실행 (UTC 기준 0시 0분)
-    - cron: '0 0 * * *'
+    # 4시간마다 실행 (UTC 기준)
+    - cron: '0 */4 * * *'
   workflow_dispatch: # 수동 실행 버튼 (테스트용)
 
 jobs:
-  crawl-and-notify:
+  run-crawler:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 코드 체크아웃
+    - name: 코드 가져오기
       uses: actions/checkout@v3
 
-    - name: 파이썬 설정 (3.9 버전)
+    - name: 파이썬 설정 (3.9)
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: '3.9'
 
     - name: 라이브러리 설치
       run: |
         pip install -r crawler/requirements.txt
 
-    - name: Firebase 키 파일 생성
-      # Secrets에 저장해둔 열쇠를 꺼내서 파일로 만드는 과정
+    - name: 키 파일 생성
       env:
         FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
       run: |
