@@ -38,7 +38,10 @@ class NoticeListPage extends StatefulWidget {
 
 class _NoticeListPageState extends State<NoticeListPage> {
   List<String> _keywords = [];
-  bool _isFilterEnabled = false;
+  bool _isFilterToggleOn = false; // 토글 상태
+  String _searchQuery = ''; // 검색어
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearchVisible = false; // 검색바 표시 여부
 
   @override
   void initState() {
@@ -46,11 +49,17 @@ class _NoticeListPageState extends State<NoticeListPage> {
     _loadKeywords();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadKeywords() async {
     final keywords = await KeywordService.getKeywords();
     setState(() {
       _keywords = keywords;
-      _isFilterEnabled = keywords.isNotEmpty;
+      // 키워드가 있으면 토글을 켤 수 있도록 함
     });
   }
 
@@ -63,13 +72,22 @@ class _NoticeListPageState extends State<NoticeListPage> {
     _loadKeywords();
   }
 
-  // 키워드 필터링: 키워드가 있으면 필터링, 없으면 모든 공고 표시
+  // 키워드 필터링: 토글이 켜져있고 키워드가 있으면 필터링
   bool _matchesKeywords(String title) {
-    if (!_isFilterEnabled || _keywords.isEmpty) {
-      return true; // 키워드가 없으면 모든 공고 표시
+    // 토글이 꺼져있으면 모든 공고 표시
+    if (!_isFilterToggleOn || _keywords.isEmpty) {
+      return true;
     }
     // 등록된 키워드 중 하나라도 제목에 포함되어 있으면 표시
     return _keywords.any((keyword) => title.contains(keyword));
+  }
+
+  // 검색 필터링
+  bool _matchesSearch(String title) {
+    if (_searchQuery.isEmpty) {
+      return true;
+    }
+    return title.toLowerCase().contains(_searchQuery.toLowerCase());
   }
 
   // 링크 여는 함수
@@ -89,13 +107,64 @@ class _NoticeListPageState extends State<NoticeListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('LH 공모 알림',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
+        title: _isSearchVisible
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: '검색어를 입력하세요',
+                  border: InputBorder.none,
+                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                ),
+                style: const TextStyle(color: Colors.black),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+              )
+            : const Text('LH 공모 알림',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: !_isSearchVisible,
         elevation: 2,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         actions: [
+          // 검색 버튼
+          IconButton(
+            icon: Icon(_isSearchVisible ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                _isSearchVisible = !_isSearchVisible;
+                if (!_isSearchVisible) {
+                  _searchQuery = '';
+                  _searchController.clear();
+                }
+              });
+            },
+            tooltip: '검색',
+          ),
+          // 키워드 필터 토글 버튼
+          if (_keywords.isNotEmpty)
+            Row(
+              children: [
+                const Text(
+                  '키워드',
+                  style: TextStyle(fontSize: 12),
+                ),
+                const SizedBox(width: 4),
+                Switch(
+                  value: _isFilterToggleOn,
+                  onChanged: (value) {
+                    setState(() {
+                      _isFilterToggleOn = value;
+                    });
+                  },
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ],
+            ),
+          // 설정 버튼
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _openKeywordSettings,
@@ -134,30 +203,42 @@ class _NoticeListPageState extends State<NoticeListPage> {
           // 3. 데이터가 있으면 리스트로 보여주기
           final docs = snapshot.data!.docs;
 
-          // 키워드 필터링 적용
+          // 키워드 필터링 및 검색 필터링 적용
           final filteredDocs = docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             final title = data['title'] ?? '';
-            return _matchesKeywords(title);
+            // 키워드 필터링과 검색 필터링 모두 통과해야 표시
+            return _matchesKeywords(title) && _matchesSearch(title);
           }).toList();
 
-          if (filteredDocs.isEmpty && _isFilterEnabled) {
+          if (filteredDocs.isEmpty && (_isFilterToggleOn || _searchQuery.isNotEmpty)) {
+            String message = '';
+            if (_isFilterToggleOn && _searchQuery.isNotEmpty) {
+              message = '키워드와 검색어에 일치하는 공고가 없습니다.';
+            } else if (_isFilterToggleOn) {
+              message = '등록된 키워드와 일치하는 공고가 없습니다.';
+            } else if (_searchQuery.isNotEmpty) {
+              message = '"$_searchQuery" 검색 결과가 없습니다.';
+            }
+
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.search_off, size: 64, color: Colors.grey),
                   const SizedBox(height: 16),
-                  const Text(
-                    '등록된 키워드와 일치하는 공고가 없습니다.',
+                  Text(
+                    message,
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                    style: const TextStyle(color: Colors.grey, fontSize: 16),
                   ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: _openKeywordSettings,
-                    child: const Text('키워드 설정하기'),
-                  ),
+                  if (_isFilterToggleOn) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _openKeywordSettings,
+                      child: const Text('키워드 설정하기'),
+                    ),
+                  ],
                 ],
               ),
             );
@@ -221,9 +302,9 @@ class _NoticeListPageState extends State<NoticeListPage> {
                         ),
                         const SizedBox(height: 8),
                         // 하단 링크 안내
-                        Row(
+                        const Row(
                           mainAxisAlignment: MainAxisAlignment.end,
-                          children: const [
+                          children: [
                             Text(
                               '자세히 보기',
                               style:
