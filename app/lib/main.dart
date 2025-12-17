@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'keyword_service.dart';
+import 'keyword_settings_page.dart';
 
 void main() async {
   // 1. 플러터 엔진과 파이어베이스 초기화
@@ -35,6 +37,41 @@ class NoticeListPage extends StatefulWidget {
 }
 
 class _NoticeListPageState extends State<NoticeListPage> {
+  List<String> _keywords = [];
+  bool _isFilterEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadKeywords();
+  }
+
+  Future<void> _loadKeywords() async {
+    final keywords = await KeywordService.getKeywords();
+    setState(() {
+      _keywords = keywords;
+      _isFilterEnabled = keywords.isNotEmpty;
+    });
+  }
+
+  Future<void> _openKeywordSettings() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const KeywordSettingsPage()),
+    );
+    // 설정 화면에서 돌아오면 키워드 다시 로드
+    _loadKeywords();
+  }
+
+  // 키워드 필터링: 키워드가 있으면 필터링, 없으면 모든 공고 표시
+  bool _matchesKeywords(String title) {
+    if (!_isFilterEnabled || _keywords.isEmpty) {
+      return true; // 키워드가 없으면 모든 공고 표시
+    }
+    // 등록된 키워드 중 하나라도 제목에 포함되어 있으면 표시
+    return _keywords.any((keyword) => title.contains(keyword));
+  }
+
   // 링크 여는 함수
   Future<void> _launchURL(String urlString) async {
     final Uri url = Uri.parse(urlString);
@@ -52,11 +89,19 @@ class _NoticeListPageState extends State<NoticeListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('LH 공모 알림', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('LH 공모 알림',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         elevation: 2,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: _openKeywordSettings,
+            tooltip: '키워드 설정',
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         // 2. Firestore의 'notices' 컬렉션을 실시간 감시
@@ -88,12 +133,42 @@ class _NoticeListPageState extends State<NoticeListPage> {
 
           // 3. 데이터가 있으면 리스트로 보여주기
           final docs = snapshot.data!.docs;
-          
+
+          // 키워드 필터링 적용
+          final filteredDocs = docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final title = data['title'] ?? '';
+            return _matchesKeywords(title);
+          }).toList();
+
+          if (filteredDocs.isEmpty && _isFilterEnabled) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.search_off, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '등록된 키워드와 일치하는 공고가 없습니다.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: _openKeywordSettings,
+                    child: const Text('키워드 설정하기'),
+                  ),
+                ],
+              ),
+            );
+          }
+
           return ListView.builder(
             padding: const EdgeInsets.all(12),
-            itemCount: docs.length,
+            itemCount: filteredDocs.length,
             itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
+              final doc = filteredDocs[index];
+              final data = doc.data() as Map<String, dynamic>;
               final title = data['title'] ?? '제목 없음';
               final date = data['date'] ?? '날짜 없음';
               final link = data['link'] ?? '';
@@ -101,7 +176,8 @@ class _NoticeListPageState extends State<NoticeListPage> {
               return Card(
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 child: InkWell(
                   onTap: () {
                     if (link.isNotEmpty) {
@@ -116,7 +192,8 @@ class _NoticeListPageState extends State<NoticeListPage> {
                       children: [
                         // 날짜 배지
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.blue.shade50,
                             borderRadius: BorderRadius.circular(6),
@@ -149,9 +226,11 @@ class _NoticeListPageState extends State<NoticeListPage> {
                           children: const [
                             Text(
                               '자세히 보기',
-                              style: TextStyle(color: Colors.grey, fontSize: 12),
+                              style:
+                                  TextStyle(color: Colors.grey, fontSize: 12),
                             ),
-                            Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                            Icon(Icons.chevron_right,
+                                size: 16, color: Colors.grey),
                           ],
                         )
                       ],
