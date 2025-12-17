@@ -211,7 +211,8 @@ class _NoticeListPageState extends State<NoticeListPage> {
             return _matchesKeywords(title) && _matchesSearch(title);
           }).toList();
 
-          if (filteredDocs.isEmpty && (_isFilterToggleOn || _searchQuery.isNotEmpty)) {
+          if (filteredDocs.isEmpty &&
+              (_isFilterToggleOn || _searchQuery.isNotEmpty)) {
             String message = '';
             if (_isFilterToggleOn && _searchQuery.isNotEmpty) {
               message = '키워드와 검색어에 일치하는 공고가 없습니다.';

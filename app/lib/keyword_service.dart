@@ -33,7 +33,7 @@ class KeywordService {
 
       keywords.add(trimmedKeyword);
       final success = await _saveKeywords(keywords);
-      
+
       // 저장 후 검증
       if (success) {
         final savedKeywords = await getKeywords();
@@ -55,10 +55,10 @@ class KeywordService {
       if (!keywords.contains(keyword)) {
         return false; // 키워드가 없으면 false 반환
       }
-      
+
       keywords.remove(keyword);
       final success = await _saveKeywords(keywords);
-      
+
       // 저장 후 검증
       if (success) {
         final savedKeywords = await getKeywords();
@@ -79,7 +79,7 @@ class KeywordService {
       final prefs = await SharedPreferences.getInstance();
       final keywordsString = keywords.join(',');
       final success = await prefs.setString(_keywordsKey, keywordsString);
-      
+
       if (success) {
         // 저장 성공 확인
         final saved = prefs.getString(_keywordsKey);
