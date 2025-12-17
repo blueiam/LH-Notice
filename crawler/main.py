@@ -113,14 +113,22 @@ def crawl_lh_notice():
             onclick = link_tag.get('onclick', '')
             final_link = ""
 
-            if link_path and not link_path.startswith('java') and link_path != '#':
+            if link_path and not link_path.startswith('java') and link_path != '#' and link_path != '#none':
                  final_link = urljoin(LH_BASE_URL, link_path)
             elif onclick:
-                match = re.search(r"['\"]?(\d{4,})['\"]?", onclick) 
+                # onclick에서 실제 링크 경로 추출
+                # 예: goView3('729895','/board.es?mid=a10601020000&bid=0034&act=view&list_no=729895&tag=&nPage=1');
+                match = re.search(r"['\"](/board\.es\?[^'\"]+)['\"]", onclick)
                 if match:
-                    list_no = match.group(1)
-                    # 순서 변경: list_no -> act=view
-                    final_link = f"{LH_BASE_URL}/board.es?mid={BOARD_MID}&bid={BOARD_BID}&list_no={list_no}&act=view"
+                    # onclick에서 전체 경로 추출
+                    path = match.group(1)
+                    final_link = urljoin(LH_BASE_URL, path)
+                else:
+                    # 폴백: list_no만 추출해서 링크 생성
+                    match = re.search(r"['\"]?(\d{4,})['\"]?", onclick) 
+                    if match:
+                        list_no = match.group(1)
+                        final_link = f"{LH_BASE_URL}/board.es?mid={BOARD_MID}&bid={BOARD_BID}&act=view&list_no={list_no}&tag=&nPage=1"
             
             if not final_link: continue
 
