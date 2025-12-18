@@ -290,29 +290,45 @@ def crawl_kams_notice():
         traceback.print_exc()
 
 def crawl_seoul_notice():
-    """서울특별시 크롤링"""
-    list_url = "https://news.seoul.go.kr/culture/archives/category/design-news_c1/business_design_c1/news_design-news-n1"
+    """서울특별시 크롤링 (디자인 뉴스 + 공공미술 공모)"""
+    # 디자인 뉴스와 공공미술 공모 두 페이지 크롤링
+    list_urls = [
+        "https://news.seoul.go.kr/culture/archives/category/design-news_c1/business_design_c1/news_design-news-n1",
+        "https://news.seoul.go.kr/culture/archives/category/public-art_c1/news_public-art-n1",
+    ]
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
-    print(f"--- Seoul 크롤링 시작: {list_url} ---")
+    all_results = []
     
-    try:
-        response = requests.get(list_url, headers=headers, timeout=15)
-        response.encoding = response.apparent_encoding or 'utf-8'
+    for list_url in list_urls:
+        print(f"--- Seoul 크롤링 시작: {list_url} ---")
         
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # 서울시 사이트 구조에 맞게 파싱
-        items = soup.select('article, .post-item, .news-item, .list-item, table tr')
-        
-        if not items:
-            print("❌ Seoul 게시물을 찾을 수 없습니다.")
-            return
+        try:
+            response = requests.get(list_url, headers=headers, timeout=15)
+            response.encoding = response.apparent_encoding or 'utf-8'
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # 서울시 사이트 구조에 맞게 파싱
+            # 공공미술 공모는 링크에서 archives/숫자 형태
+            items = soup.select('article, .post-item, .news-item, .list-item, table tr')
+            
+            # 링크 직접 찾기 (archives/숫자 형태)
+            if not items or len(items) < 3:
+                all_links = soup.find_all('a', href=True)
+                for link in all_links:
+                    href = link.get('href', '')
+                    if '/archives/' in href and href.replace('/archives/', '').split('?')[0].isdigit():
+                        # 링크를 항목으로 변환
+                        items.append(link.parent if link.parent else link)
+            
+            if not items:
+                print(f"  ⚠️ {list_url}에서 게시물을 찾을 수 없습니다.")
+                continue
 
-        results = []
-        for item in items:
+            for item in items:
             try:
                 # 제목과 링크 추출
                 link_tag = item.find('a')
@@ -354,7 +370,7 @@ def crawl_seoul_notice():
                 if not date_text:
                     date_text = '날짜 없음'
                 
-                results.append({
+                all_results.append({
                     'number': '',
                     'title': title,
                     'date': date_text,
@@ -363,21 +379,29 @@ def crawl_seoul_notice():
             except Exception as e:
                 print(f"  ⚠️ 항목 파싱 오류: {e}")
                 continue
+        
+        print(f"  ✅ {list_url}에서 {len([r for r in all_results if list_url in r.get('link', '')])}개 항목 발견")
+    
+    # DB 저장 및 알림 시도
+    if all_results:
+        print(f"\n총 {len(all_results)}건의 Seoul 게시물을 처리합니다...")
+        db = init_firebase()
+        new_count = 0
+        for item in all_results:
+            if check_and_save(db, item, source='Seoul'):
+                new_count += 1
+        print(f"\n=== Seoul 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
+    else:
+        print("\nSeoul 게시물이 없습니다.")
 
-        # DB 저장 및 알림 시도
-        if results:
-            print(f"총 {len(results)}건의 Seoul 게시물을 처리합니다...")
-            db = init_firebase()
-            new_count = 0
-            for item in results:
-                if check_and_save(db, item, source='Seoul'):
-                    new_count += 1
-            print(f"\n=== Seoul 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
-        else:
-            print("\nSeoul 게시물이 없습니다.")
-
+        except Exception as e:
+            print(f"  ⚠️ {list_url} 크롤링 에러: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+    
     except Exception as e:
-        print(f"Seoul 크롤링 에러 발생: {e}")
+        print(f"Seoul 크롤링 전체 에러 발생: {e}")
         import traceback
         traceback.print_exc()
 
