@@ -50,6 +50,11 @@ class _MainPageState extends State<MainPage> {
       'title': '서울특별시',
       'icon': Icons.location_city,
     },
+    {
+      'source': 'SeoulPublicArt',
+      'title': '서울 공공미술 공모',
+      'icon': Icons.brush,
+    },
   ];
 
   @override

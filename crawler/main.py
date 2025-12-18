@@ -31,7 +31,8 @@ def send_fcm_notification(title, link, source='LH'):
         source_names = {
             'LH': 'LH 공모 알림',
             'KAMS': '예술경영지원센터 알림',
-            'Seoul': '서울특별시 알림'
+            'Seoul': '서울특별시 알림',
+            'SeoulPublicArt': '서울 공공미술 공모 알림'
         }
         source_name = source_names.get(source, '공모 알림')
         
@@ -290,47 +291,37 @@ def crawl_kams_notice():
         traceback.print_exc()
 
 def crawl_seoul_notice():
-    """서울특별시 크롤링 (디자인 뉴스 + 공공미술 공모)"""
-    # 디자인 뉴스와 공공미술 공모 두 페이지 크롤링
-    list_urls = [
-        "https://news.seoul.go.kr/culture/archives/category/design-news_c1/business_design_c1/news_design-news-n1",
-        "https://news.seoul.go.kr/culture/archives/category/public-art_c1/news_public-art-n1",
-    ]
+    """서울특별시 크롤링 (디자인 뉴스)"""
+    list_url = "https://news.seoul.go.kr/culture/archives/category/design-news_c1/business_design_c1/news_design-news-n1"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
-    all_results = []
+    print(f"--- Seoul 크롤링 시작: {list_url} ---")
     
-    for list_url in list_urls:
-        print(f"--- Seoul 크롤링 시작: {list_url} ---")
+    try:
+        response = requests.get(list_url, headers=headers, timeout=15)
+        response.encoding = response.apparent_encoding or 'utf-8'
         
-        try:
-            response = requests.get(list_url, headers=headers, timeout=15)
-            response.encoding = response.apparent_encoding or 'utf-8'
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # 서울시 사이트 구조에 맞게 파싱
-            # 공공미술 공모는 링크에서 archives/숫자 형태
-            items = soup.select('article, .post-item, .news-item, .list-item, table tr')
-            
-            # 링크 직접 찾기 (archives/숫자 형태)
-            if not items or len(items) < 3:
-                all_links = soup.find_all('a', href=True)
-                for link in all_links:
-                    href = link.get('href', '')
-                    if '/archives/' in href and href.replace('/archives/', '').split('?')[0].isdigit():
-                        # 링크를 항목으로 변환
-                        items.append(link.parent if link.parent else link)
-            
-            if not items:
-                print(f"  ⚠️ {list_url}에서 게시물을 찾을 수 없습니다.")
-                continue
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        items = soup.select('article, .post-item, .news-item, .list-item, table tr')
+        
+        # 링크 직접 찾기 (archives/숫자 형태)
+        if not items or len(items) < 3:
+            all_links = soup.find_all('a', href=True)
+            for link in all_links:
+                href = link.get('href', '')
+                if '/archives/' in href and href.replace('/archives/', '').split('?')[0].isdigit():
+                    items.append(link.parent if link.parent else link)
+        
+        if not items:
+            print("❌ Seoul 게시물을 찾을 수 없습니다.")
+            return
 
-            for item in items:
+        results = []
+        for item in items:
             try:
-                # 제목과 링크 추출
                 link_tag = item.find('a')
                 if not link_tag:
                     continue
@@ -339,12 +330,10 @@ def crawl_seoul_notice():
                 if not title:
                     continue
                 
-                # 링크 추출
                 href = link_tag.get('href', '')
                 if not href or href == '#':
                     continue
                 
-                # 절대 URL로 변환
                 if href.startswith('/'):
                     final_link = urljoin('https://news.seoul.go.kr', href)
                 elif href.startswith('http'):
@@ -352,16 +341,13 @@ def crawl_seoul_notice():
                 else:
                     final_link = urljoin(list_url, href)
                 
-                # 날짜 추출
                 date_text = ''
                 date_elements = item.select('.date, .post-date, time, [class*="date"], [datetime]')
                 if date_elements:
                     date_text = date_elements[0].get_text(strip=True)
-                    # datetime 속성이 있으면 사용
                     if not date_text and date_elements[0].get('datetime'):
                         date_text = date_elements[0].get('datetime')
                 else:
-                    # 텍스트에서 날짜 패턴 찾기
                     text = item.get_text()
                     date_match = re.search(r'(\d{4}[.-]\d{2}[.-]\d{2})', text)
                     if date_match:
@@ -370,7 +356,7 @@ def crawl_seoul_notice():
                 if not date_text:
                     date_text = '날짜 없음'
                 
-                all_results.append({
+                results.append({
                     'number': '',
                     'title': title,
                     'date': date_text,
@@ -379,20 +365,114 @@ def crawl_seoul_notice():
             except Exception as e:
                 print(f"  ⚠️ 항목 파싱 오류: {e}")
                 continue
-        
-        print(f"  ✅ {list_url}에서 {len([r for r in all_results if list_url in r.get('link', '')])}개 항목 발견")
+
+        if results:
+            print(f"총 {len(results)}건의 Seoul 게시물을 처리합니다...")
+            db = init_firebase()
+            new_count = 0
+            for item in results:
+                if check_and_save(db, item, source='Seoul'):
+                    new_count += 1
+            print(f"\n=== Seoul 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
+        else:
+            print("\nSeoul 게시물이 없습니다.")
+
+    except Exception as e:
+        print(f"Seoul 크롤링 에러 발생: {e}")
+        import traceback
+        traceback.print_exc()
+
+def crawl_seoul_public_art():
+    """서울 공공미술 공모 크롤링"""
+    list_url = "https://news.seoul.go.kr/culture/archives/category/public-art_c1/news_public-art-n1"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
     
-    # DB 저장 및 알림 시도
-    if all_results:
-        print(f"\n총 {len(all_results)}건의 Seoul 게시물을 처리합니다...")
-        db = init_firebase()
-        new_count = 0
-        for item in all_results:
-            if check_and_save(db, item, source='Seoul'):
-                new_count += 1
-        print(f"\n=== Seoul 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
-    else:
-        print("\nSeoul 게시물이 없습니다.")
+    print(f"--- Seoul 공공미술 공모 크롤링 시작: {list_url} ---")
+    
+    try:
+        response = requests.get(list_url, headers=headers, timeout=15)
+        response.encoding = response.apparent_encoding or 'utf-8'
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        items = soup.select('article, .post-item, .news-item, .list-item, table tr')
+        
+        # 링크 직접 찾기 (archives/숫자 형태)
+        if not items or len(items) < 3:
+            all_links = soup.find_all('a', href=True)
+            for link in all_links:
+                href = link.get('href', '')
+                if '/archives/' in href and href.replace('/archives/', '').split('?')[0].isdigit():
+                    items.append(link.parent if link.parent else link)
+        
+        if not items:
+            print("❌ Seoul 공공미술 공모 게시물을 찾을 수 없습니다.")
+            return
+
+        results = []
+        for item in items:
+            try:
+                link_tag = item.find('a')
+                if not link_tag:
+                    continue
+                
+                title = link_tag.get_text(strip=True)
+                if not title:
+                    continue
+                
+                href = link_tag.get('href', '')
+                if not href or href == '#':
+                    continue
+                
+                if href.startswith('/'):
+                    final_link = urljoin('https://news.seoul.go.kr', href)
+                elif href.startswith('http'):
+                    final_link = href
+                else:
+                    final_link = urljoin(list_url, href)
+                
+                date_text = ''
+                date_elements = item.select('.date, .post-date, time, [class*="date"], [datetime]')
+                if date_elements:
+                    date_text = date_elements[0].get_text(strip=True)
+                    if not date_text and date_elements[0].get('datetime'):
+                        date_text = date_elements[0].get('datetime')
+                else:
+                    text = item.get_text()
+                    date_match = re.search(r'(\d{4}[.-]\d{2}[.-]\d{2})', text)
+                    if date_match:
+                        date_text = date_match.group(1)
+                
+                if not date_text:
+                    date_text = '날짜 없음'
+                
+                results.append({
+                    'number': '',
+                    'title': title,
+                    'date': date_text,
+                    'link': final_link
+                })
+            except Exception as e:
+                print(f"  ⚠️ 항목 파싱 오류: {e}")
+                continue
+
+        if results:
+            print(f"총 {len(results)}건의 Seoul 공공미술 공모 게시물을 처리합니다...")
+            db = init_firebase()
+            new_count = 0
+            for item in results:
+                if check_and_save(db, item, source='SeoulPublicArt'):
+                    new_count += 1
+            print(f"\n=== Seoul 공공미술 공모 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
+        else:
+            print("\nSeoul 공공미술 공모 게시물이 없습니다.")
+
+    except Exception as e:
+        print(f"Seoul 공공미술 공모 크롤링 에러 발생: {e}")
+        import traceback
+        traceback.print_exc()
 
         except Exception as e:
             print(f"  ⚠️ {list_url} 크롤링 에러: {e}")
@@ -410,3 +490,4 @@ if __name__ == "__main__":
     crawl_lh_notice()
     crawl_kams_notice()
     crawl_seoul_notice()
+    crawl_seoul_public_art()
