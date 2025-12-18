@@ -393,14 +393,13 @@ def crawl_seoul_notice():
         traceback.print_exc()
 
 def crawl_seoul_public_art():
-    """서울 공공미술 공모 크롤링 (디자인 뉴스에서 공공미술 공모 필터링)"""
-    # 공공미술 공모는 디자인 뉴스 페이지에 포함되어 있음
-    list_url = "https://news.seoul.go.kr/culture/archives/category/design-news_c1/business_design_c1/news_design-news-n1"
+    """서울 공공미술 소식 크롤링"""
+    list_url = "https://news.seoul.go.kr/culture/archives/category/design-news_c1/business_design_c1/public-art-news-n1"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
-    print(f"--- Seoul 공공미술 공모 크롤링 시작 (디자인 뉴스에서 필터링) ---")
+    print(f"--- Seoul 공공미술 소식 크롤링 시작: {list_url} ---")
     
     try:
         response = requests.get(list_url, headers=headers, timeout=15)
@@ -408,79 +407,80 @@ def crawl_seoul_public_art():
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # ul li a[href*="archives"] 선택자 사용
-        archive_links = soup.select('ul li a[href*="archives"]')
+        # 모든 링크에서 실제 게시물 링크 찾기 (archives/숫자 형태)
+        all_links = soup.find_all('a', href=True)
+        articles = []
         
-        if not archive_links:
-            print("❌ Seoul 공공미술 공모 게시물을 찾을 수 없습니다.")
+        for link in all_links:
+            href = link.get('href', '')
+            text = link.get_text(strip=True)
+            
+            # archives/숫자 형태의 링크만 (카테고리 링크 제외)
+            if '/archives/' in href:
+                # URL에서 숫자 ID 추출
+                parts = href.split('/archives/')
+                if len(parts) > 1:
+                    id_part = parts[1].split('?')[0].split('/')[0]
+                    # 숫자로만 이루어진 ID만 (카테고리 링크 제외)
+                    if id_part.isdigit() and text and len(text) > 10:
+                        # 중복 제거
+                        if not any(a['link'] == href for a in articles):
+                            # 날짜 찾기 (부모 요소에서)
+                            date_text = '날짜 없음'
+                            parent = link.parent
+                            if parent:
+                                # 부모의 텍스트에서 날짜 찾기
+                                parent_text = parent.get_text()
+                                # "등록일 : 2025-12-08" 형식 찾기
+                                date_match = re.search(r'등록일\s*:\s*(\d{4}[.-]\d{2}[.-]\d{2})', parent_text)
+                                if date_match:
+                                    date_text = date_match.group(1)
+                                else:
+                                    # 일반 날짜 패턴 찾기
+                                    date_match = re.search(r'(\d{4}[.-]\d{2}[.-]\d{2})', parent_text)
+                                    if date_match:
+                                        date_text = date_match.group(1)
+                            
+                            # 절대 URL로 변환
+                            if href.startswith('/'):
+                                final_link = urljoin('https://news.seoul.go.kr', href)
+                            elif href.startswith('http'):
+                                final_link = href
+                            else:
+                                final_link = urljoin(list_url, href)
+                            
+                            articles.append({
+                                'title': text,
+                                'link': final_link,
+                                'date': date_text
+                            })
+        
+        if not articles:
+            print("❌ Seoul 공공미술 소식 게시물을 찾을 수 없습니다.")
             return
 
         results = []
-        for link_tag in archive_links:
-            try:
-                href = link_tag.get('href', '')
-                title = link_tag.get_text(strip=True)
-                
-                if not title or not href or len(title) < 5:
-                    continue
-                
-                # 공공미술 공모 관련 키워드 필터링
-                public_art_keywords = ['공공미술', '미술작품', '조형물', '공모', '설치', '작가']
-                if not any(keyword in title for keyword in public_art_keywords):
-                    continue
-                
-                # archives/숫자 형태인지 확인
-                if '/archives/' not in href:
-                    continue
-                
-                # 절대 URL로 변환
-                if href.startswith('/'):
-                    final_link = urljoin('https://news.seoul.go.kr', href)
-                elif href.startswith('http'):
-                    final_link = href
-                else:
-                    final_link = urljoin(list_url, href)
-                
-                # 날짜 추출 (부모 요소에서 찾기)
-                date_text = '날짜 없음'
-                parent = link_tag.parent
-                if parent:
-                    # 부모 요소에서 날짜 찾기
-                    date_elements = parent.select('.date, .post-date, time, [class*="date"], [datetime]')
-                    if date_elements:
-                        date_text = date_elements[0].get_text(strip=True)
-                        if not date_text and date_elements[0].get('datetime'):
-                            date_text = date_elements[0].get('datetime')
-                    else:
-                        # 텍스트에서 날짜 패턴 찾기
-                        text = parent.get_text()
-                        date_match = re.search(r'(\d{4}[.-]\d{2}[.-]\d{2})', text)
-                        if date_match:
-                            date_text = date_match.group(1)
-                
-                results.append({
-                    'number': '',
-                    'title': title,
-                    'date': date_text,
-                    'link': final_link
-                })
-            except Exception as e:
-                print(f"  ⚠️ 항목 파싱 오류: {e}")
-                continue
+        for article in articles:
+            results.append({
+                'number': '',
+                'title': article['title'],
+                'date': article['date'],
+                'link': article['link']
+            })
 
         if results:
-            print(f"총 {len(results)}건의 Seoul 공공미술 공모 게시물을 처리합니다...")
+            print(f"총 {len(results)}건의 Seoul 공공미술 소식 게시물을 처리합니다...")
             db = init_firebase()
             new_count = 0
             for item in results:
                 if check_and_save(db, item, source='SeoulPublicArt'):
                     new_count += 1
-            print(f"\n=== Seoul 공공미술 공모 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
+            print(f"\n=== Seoul 공공미술 소식 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
         else:
-            print("\nSeoul 공공미술 공모 게시물이 없습니다.")
+            print("\nSeoul 공공미술 소식 게시물이 없습니다.")
 
     except Exception as e:
-        print(f"Seoul 공공미술 공모 크롤링 에러 발생: {e}")
+        print(f"Seoul 공공미술 소식 크롤링 에러 발생: {e}")
         import traceback
         traceback.print_exc()
 
