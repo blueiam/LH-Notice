@@ -64,13 +64,7 @@ class _MainPageState extends State<MainPage> {
         elevation: 2,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openEndDrawer(),
-            tooltip: '메뉴',
-          ),
-        ),
+        automaticallyImplyLeading: false, // 왼쪽 햄버거 아이콘 제거
       ),
       endDrawer: Drawer(
         child: ListView(
