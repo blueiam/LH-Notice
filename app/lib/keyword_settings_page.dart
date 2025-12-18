@@ -142,12 +142,15 @@ class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
                 Expanded(
                   child: TextField(
                     controller: _keywordController,
-                    keyboardType: TextInputType.name, // 한글 입력을 위한 타입
+                    // keyboardType을 명시하지 않으면 기본값으로 모든 입력 허용
                     textInputAction: TextInputAction.done,
                     enableSuggestions: true,
                     autocorrect: true,
                     enableInteractiveSelection: true,
+                    maxLines: 1,
                     style: const TextStyle(fontSize: 16),
+                    // 한글 입력을 명시적으로 허용
+                    inputFormatters: null, // 제한 없음
                     decoration: InputDecoration(
                       hintText: '키워드를 입력하세요',
                       hintStyle: TextStyle(color: Colors.grey.shade400),
@@ -161,7 +164,8 @@ class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                        borderSide:
+                            BorderSide(color: Colors.blue.shade400, width: 2),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
