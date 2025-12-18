@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'keyword_service.dart';
 
 class KeywordSettingsPage extends StatefulWidget {
-  const KeywordSettingsPage({super.key});
+  final String source;
+
+  const KeywordSettingsPage({super.key, this.source = 'LH'});
 
   @override
   State<KeywordSettingsPage> createState() => _KeywordSettingsPageState();
@@ -28,7 +30,7 @@ class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
   Future<void> _loadKeywords() async {
     setState(() => _isLoading = true);
     try {
-      final keywords = await KeywordService.getKeywords();
+      final keywords = await KeywordService.getKeywords(source: widget.source);
       setState(() {
         _keywords = keywords;
         _isLoading = false;
@@ -47,14 +49,16 @@ class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
     }
 
     try {
-      final success = await KeywordService.addKeyword(keyword);
+      final success =
+          await KeywordService.addKeyword(keyword, source: widget.source);
       if (success) {
         _keywordController.clear();
         await _loadKeywords();
         _showSnackBar('키워드가 추가되었습니다.');
       } else {
         // 중복 체크를 위해 현재 키워드 목록 확인
-        final currentKeywords = await KeywordService.getKeywords();
+        final currentKeywords =
+            await KeywordService.getKeywords(source: widget.source);
         if (currentKeywords.contains(keyword)) {
           _showSnackBar('이미 등록된 키워드입니다.');
         } else {
@@ -90,7 +94,8 @@ class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
     if (confirm != true) return;
 
     try {
-      final success = await KeywordService.deleteKeyword(keyword);
+      final success =
+          await KeywordService.deleteKeyword(keyword, source: widget.source);
       if (success) {
         await _loadKeywords();
         _showSnackBar('키워드가 삭제되었습니다.');
@@ -114,8 +119,8 @@ class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('관심 키워드 설정',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text('관심 키워드 설정 (${widget.source})',
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         elevation: 2,
         backgroundColor: Colors.white,

@@ -45,6 +45,8 @@ def debug_crawl():
                 continue
                 
             full_title = link_tag.get_text(strip=True)
+            href = link_tag.get('href', '')
+            onclick = link_tag.get('onclick', '')
             
             # 날짜 찾기 (모든 칸 뒤져서 날짜 형식 찾기)
             cells = row.find_all('td')
@@ -58,6 +60,8 @@ def debug_crawl():
             print(f"[{i+1}번 게시물]")
             print(f"  - 제목: {full_title}")
             print(f"  - 날짜: {date_text}")
+            print(f"  - href: {href}")
+            print(f"  - onclick: {onclick}")
             print("-" * 30)
 
         print("\n✅ 테스트 완료. 위 제목들이 정상적으로 보이나요?")

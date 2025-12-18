@@ -24,28 +24,50 @@ def init_firebase():
         firebase_admin.initialize_app(cred)
     return firestore.client()
 
-def send_fcm_notification(title, link):
-    """FCM 알림 발송 함수"""
+def send_fcm_notification(title, link, source='LH'):
+    """FCM 알림 발송 함수 - 신뢰성 개선"""
     try:
+        # 소스별 알림 제목 설정
+        source_names = {
+            'LH': 'LH 공모 알림',
+            'KAMS': '예술경영지원센터 알림',
+            'Seoul': '서울특별시 알림'
+        }
+        source_name = source_names.get(source, '공모 알림')
+        
         # 'lh_notice'라는 주제(Topic)를 구독한 앱들에게 알림을 쏩니다.
         message = messaging.Message(
             notification=messaging.Notification(
-                title="[LH 새 공고 알림]",
+                title=f"[{source_name}]",
                 body=title,
             ),
             data={
                 'link': link, # 앱에서 클릭 시 이동할 링크
+                'source': source, # 소스 정보 추가
                 'click_action': 'FLUTTER_NOTIFICATION_CLICK'
             },
             topic='lh_notice',
+            # 알림 우선순위 설정 (높은 우선순위로 즉시 전달)
+            android=messaging.AndroidConfig(
+                priority='high',
+                notification=messaging.AndroidNotification(
+                    priority='high',
+                    sound='default',
+                    channel_id='lh_notice_channel'
+                )
+            ),
         )
         response = messaging.send(message)
-        print(f"  📢 [알림 발송 성공] Message ID: {response}")
+        print(f"  📢 [알림 발송 성공] Message ID: {response} | Source: {source}")
+        return True
     except Exception as e:
         print(f"  ⚠️ [알림 발송 실패] {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
-def check_and_save(db, data):
-    """저장 및 알림 트리거"""
+def check_and_save(db, data, source='LH'):
+    """저장 및 알림 트리거 - source 필드 추가"""
     link = data.get('link', '').strip()
     if not link or link == '#': return False
     
@@ -60,22 +82,28 @@ def check_and_save(db, data):
             # print(f"  [중복] {data['title']}") # 너무 시끄러우면 주석 처리
             return False 
         
-        # 2. 신규 저장
+        # 2. 신규 저장 (source 필드 추가)
         doc_ref.set({
             'number': data.get('number', ''),
             'title': data.get('title', ''),
             'date': data.get('date', ''),
             'link': link,
+            'source': source,  # 소스 필드 추가
             'created_at': firestore.SERVER_TIMESTAMP
         })
         
         # 3. [중요] 저장 성공 시 알림 발송 함수 호출!
-        print(f"  💾 [신규 저장 완료] {data['title']}")
-        send_fcm_notification(data['title'], link)
+        print(f"  💾 [신규 저장 완료] {data['title']} | Source: {source}")
+        notification_sent = send_fcm_notification(data['title'], link, source)
+        
+        if not notification_sent:
+            print(f"  ⚠️ 알림 발송 실패했지만 데이터는 저장되었습니다.")
         
         return True
     except Exception as e:
         print(f"  DB 에러: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def crawl_lh_notice():
@@ -154,14 +182,207 @@ def crawl_lh_notice():
             db = init_firebase()
             new_count = 0
             for item in results:
-                if check_and_save(db, item):
+                if check_and_save(db, item, source='LH'):
                     new_count += 1
-            print(f"\n=== 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
+            print(f"\n=== LH 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
         else:
-            print("\n게시물이 없습니다.")
+            print("\nLH 게시물이 없습니다.")
 
     except Exception as e:
         print(f"에러 발생: {e}")
 
+def crawl_kams_notice():
+    """KAMS 예술경영지원센터 크롤링"""
+    list_url = "https://gokams.or.kr/01_news/event_list.aspx"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
+    print(f"--- KAMS 크롤링 시작: {list_url} ---")
+    
+    try:
+        response = requests.get(list_url, headers=headers, timeout=15)
+        response.encoding = response.apparent_encoding or 'utf-8'
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # KAMS 사이트 구조: table tr 형태
+        rows = soup.select('table tbody tr, table tr')
+        
+        if not rows:
+            print("❌ KAMS 게시물을 찾을 수 없습니다.")
+            return
+
+        results = []
+        base_url = "https://gokams.or.kr/01_news/"
+        
+        for row in rows:
+            try:
+                cells = row.find_all('td')
+                if len(cells) < 4:  # 최소 4개 셀 필요
+                    continue
+                
+                # 제목과 링크 추출
+                link_tag = row.find('a')
+                if not link_tag:
+                    continue
+                
+                title = link_tag.get_text(strip=True)
+                # "new" 이미지 텍스트 제거
+                title = re.sub(r'\s*\[new\]\s*', '', title, flags=re.IGNORECASE)
+                if not title:
+                    continue
+                
+                # 링크 추출
+                href = link_tag.get('href', '')
+                if not href or href == '#':
+                    continue
+                
+                # 절대 URL로 변환
+                if href.startswith('/'):
+                    final_link = urljoin('https://gokams.or.kr', href)
+                elif href.startswith('http'):
+                    final_link = href
+                else:
+                    final_link = urljoin(base_url, href)
+                
+                # 날짜 추출 (일반적으로 4번째 또는 5번째 셀)
+                date_text = ''
+                for cell in cells:
+                    cell_text = cell.get_text(strip=True)
+                    # 날짜 패턴 찾기 (YYYY-MM-DD 또는 YYYY-MM-DD ~ MM-DD)
+                    date_match = re.search(r'(\d{4}[.-]\d{2}[.-]\d{2})', cell_text)
+                    if date_match:
+                        date_text = cell_text
+                        break
+                
+                if not date_text:
+                    date_text = '날짜 없음'
+                
+                # 번호 추출 (첫 번째 셀)
+                number = cells[0].get_text(strip=True) if cells else ''
+                
+                results.append({
+                    'number': number,
+                    'title': title,
+                    'date': date_text,
+                    'link': final_link
+                })
+            except Exception as e:
+                print(f"  ⚠️ 항목 파싱 오류: {e}")
+                continue
+
+        # DB 저장 및 알림 시도
+        if results:
+            print(f"총 {len(results)}건의 KAMS 게시물을 처리합니다...")
+            db = init_firebase()
+            new_count = 0
+            for item in results:
+                if check_and_save(db, item, source='KAMS'):
+                    new_count += 1
+            print(f"\n=== KAMS 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
+        else:
+            print("\nKAMS 게시물이 없습니다.")
+
+    except Exception as e:
+        print(f"KAMS 크롤링 에러 발생: {e}")
+        import traceback
+        traceback.print_exc()
+
+def crawl_seoul_notice():
+    """서울특별시 크롤링"""
+    list_url = "https://news.seoul.go.kr/culture/archives/category/design-news_c1/business_design_c1/news_design-news-n1"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
+    print(f"--- Seoul 크롤링 시작: {list_url} ---")
+    
+    try:
+        response = requests.get(list_url, headers=headers, timeout=15)
+        response.encoding = response.apparent_encoding or 'utf-8'
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 서울시 사이트 구조에 맞게 파싱
+        items = soup.select('article, .post-item, .news-item, .list-item, table tr')
+        
+        if not items:
+            print("❌ Seoul 게시물을 찾을 수 없습니다.")
+            return
+
+        results = []
+        for item in items:
+            try:
+                # 제목과 링크 추출
+                link_tag = item.find('a')
+                if not link_tag:
+                    continue
+                
+                title = link_tag.get_text(strip=True)
+                if not title:
+                    continue
+                
+                # 링크 추출
+                href = link_tag.get('href', '')
+                if not href or href == '#':
+                    continue
+                
+                # 절대 URL로 변환
+                if href.startswith('/'):
+                    final_link = urljoin('https://news.seoul.go.kr', href)
+                elif href.startswith('http'):
+                    final_link = href
+                else:
+                    final_link = urljoin(list_url, href)
+                
+                # 날짜 추출
+                date_text = ''
+                date_elements = item.select('.date, .post-date, time, [class*="date"], [datetime]')
+                if date_elements:
+                    date_text = date_elements[0].get_text(strip=True)
+                    # datetime 속성이 있으면 사용
+                    if not date_text and date_elements[0].get('datetime'):
+                        date_text = date_elements[0].get('datetime')
+                else:
+                    # 텍스트에서 날짜 패턴 찾기
+                    text = item.get_text()
+                    date_match = re.search(r'(\d{4}[.-]\d{2}[.-]\d{2})', text)
+                    if date_match:
+                        date_text = date_match.group(1)
+                
+                if not date_text:
+                    date_text = '날짜 없음'
+                
+                results.append({
+                    'number': '',
+                    'title': title,
+                    'date': date_text,
+                    'link': final_link
+                })
+            except Exception as e:
+                print(f"  ⚠️ 항목 파싱 오류: {e}")
+                continue
+
+        # DB 저장 및 알림 시도
+        if results:
+            print(f"총 {len(results)}건의 Seoul 게시물을 처리합니다...")
+            db = init_firebase()
+            new_count = 0
+            for item in results:
+                if check_and_save(db, item, source='Seoul'):
+                    new_count += 1
+            print(f"\n=== Seoul 실행 완료: {new_count}건 신규 저장 및 알림 전송 ===")
+        else:
+            print("\nSeoul 게시물이 없습니다.")
+
+    except Exception as e:
+        print(f"Seoul 크롤링 에러 발생: {e}")
+        import traceback
+        traceback.print_exc()
+
 if __name__ == "__main__":
+    # 모든 소스 크롤링 실행
     crawl_lh_notice()
+    crawl_kams_notice()
+    crawl_seoul_notice()
