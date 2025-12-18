@@ -194,8 +194,6 @@ class _NoticeListPageState extends State<NoticeListPage> {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('notices')
-                  .where('source', isEqualTo: widget.source)
-                  .orderBy('date', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -218,8 +216,22 @@ class _NoticeListPageState extends State<NoticeListPage> {
 
                 final docs = snapshot.data!.docs;
 
+                // 소스 필터링 (클라이언트 측에서)
+                final sourceFilteredDocs = docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final source = data['source'] ?? 'LH';
+                  return source == widget.source;
+                }).toList();
+
+                // 날짜로 정렬 (클라이언트 측에서)
+                sourceFilteredDocs.sort((a, b) {
+                  final dateA = (a.data() as Map<String, dynamic>)['date'] ?? '';
+                  final dateB = (b.data() as Map<String, dynamic>)['date'] ?? '';
+                  return dateB.compareTo(dateA); // 내림차순
+                });
+
                 // 숨김 아이템 필터링
-                final visibleDocs = docs.where((doc) {
+                final visibleDocs = sourceFilteredDocs.where((doc) {
                   return !_hiddenItemIds.contains(doc.id);
                 }).toList();
 
@@ -377,3 +389,4 @@ class _NoticeListPageState extends State<NoticeListPage> {
     );
   }
 }
+
