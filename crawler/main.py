@@ -305,35 +305,43 @@ def crawl_seoul_notice():
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        items = soup.select('article, .post-item, .news-item, .list-item, table tr')
+        # 서울시 사이트는 archives/숫자 형태의 링크를 직접 찾아야 함
+        all_links = soup.find_all('a', href=True)
+        archive_items = []
         
-        # 링크 직접 찾기 (archives/숫자 형태)
-        if not items or len(items) < 3:
-            all_links = soup.find_all('a', href=True)
-            for link in all_links:
-                href = link.get('href', '')
-                if '/archives/' in href and href.replace('/archives/', '').split('?')[0].isdigit():
-                    items.append(link.parent if link.parent else link)
+        for link in all_links:
+            href = link.get('href', '')
+            text = link.get_text(strip=True)
+            
+            # archives/숫자 형태의 링크 찾기
+            if '/archives/' in href:
+                # URL에서 숫자 ID 추출
+                parts = href.split('/archives/')
+                if len(parts) > 1:
+                    id_part = parts[1].split('?')[0].split('/')[0]
+                    if id_part.isdigit() and text and len(text) > 5:
+                        # 의미있는 텍스트가 있는 링크만
+                        archive_items.append({
+                            'link': link,
+                            'href': href,
+                            'text': text
+                        })
         
-        if not items:
+        if not archive_items:
             print("❌ Seoul 게시물을 찾을 수 없습니다.")
             return
 
         results = []
-        for item in items:
+        for item_data in archive_items:
             try:
-                link_tag = item.find('a')
-                if not link_tag:
+                link_tag = item_data['link']
+                href = item_data['href']
+                title = item_data['text']
+                
+                if not title or not href:
                     continue
                 
-                title = link_tag.get_text(strip=True)
-                if not title:
-                    continue
-                
-                href = link_tag.get('href', '')
-                if not href or href == '#':
-                    continue
-                
+                # 절대 URL로 변환
                 if href.startswith('/'):
                     final_link = urljoin('https://news.seoul.go.kr', href)
                 elif href.startswith('http'):
@@ -341,20 +349,22 @@ def crawl_seoul_notice():
                 else:
                     final_link = urljoin(list_url, href)
                 
-                date_text = ''
-                date_elements = item.select('.date, .post-date, time, [class*="date"], [datetime]')
-                if date_elements:
-                    date_text = date_elements[0].get_text(strip=True)
-                    if not date_text and date_elements[0].get('datetime'):
-                        date_text = date_elements[0].get('datetime')
-                else:
-                    text = item.get_text()
-                    date_match = re.search(r'(\d{4}[.-]\d{2}[.-]\d{2})', text)
-                    if date_match:
-                        date_text = date_match.group(1)
-                
-                if not date_text:
-                    date_text = '날짜 없음'
+                # 날짜 추출 (부모 요소에서 찾기)
+                date_text = '날짜 없음'
+                parent = link_tag.parent
+                if parent:
+                    # 부모 요소에서 날짜 찾기
+                    date_elements = parent.select('.date, .post-date, time, [class*="date"], [datetime]')
+                    if date_elements:
+                        date_text = date_elements[0].get_text(strip=True)
+                        if not date_text and date_elements[0].get('datetime'):
+                            date_text = date_elements[0].get('datetime')
+                    else:
+                        # 텍스트에서 날짜 패턴 찾기
+                        text = parent.get_text()
+                        date_match = re.search(r'(\d{4}[.-]\d{2}[.-]\d{2})', text)
+                        if date_match:
+                            date_text = date_match.group(1)
                 
                 results.append({
                     'number': '',
@@ -397,35 +407,39 @@ def crawl_seoul_public_art():
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        items = soup.select('article, .post-item, .news-item, .list-item, table tr')
+        # 여러 선택자 시도
+        archive_links = soup.select('ul li a[href*="archives"]')
         
-        # 링크 직접 찾기 (archives/숫자 형태)
-        if not items or len(items) < 3:
+        # archives 링크가 없으면 모든 링크에서 찾기
+        if not archive_links:
             all_links = soup.find_all('a', href=True)
             for link in all_links:
                 href = link.get('href', '')
-                if '/archives/' in href and href.replace('/archives/', '').split('?')[0].isdigit():
-                    items.append(link.parent if link.parent else link)
+                text = link.get_text(strip=True)
+                # 공공미술 공모 관련 링크 찾기
+                if ('/archives/' in href or 'public-art' in href) and text and len(text) > 5:
+                    # 의미있는 텍스트가 있는 링크만
+                    archive_links.append(link)
         
-        if not items:
+        if not archive_links:
             print("❌ Seoul 공공미술 공모 게시물을 찾을 수 없습니다.")
+            print("  참고: 공공미술 공모 페이지가 비어있거나 구조가 다를 수 있습니다.")
             return
 
         results = []
-        for item in items:
+        for link_tag in archive_links:
             try:
-                link_tag = item.find('a')
-                if not link_tag:
-                    continue
-                
-                title = link_tag.get_text(strip=True)
-                if not title:
-                    continue
-                
                 href = link_tag.get('href', '')
-                if not href or href == '#':
+                title = link_tag.get_text(strip=True)
+                
+                if not title or not href or len(title) < 5:
                     continue
                 
+                # archives/숫자 형태인지 확인
+                if '/archives/' not in href:
+                    continue
+                
+                # 절대 URL로 변환
                 if href.startswith('/'):
                     final_link = urljoin('https://news.seoul.go.kr', href)
                 elif href.startswith('http'):
@@ -433,20 +447,22 @@ def crawl_seoul_public_art():
                 else:
                     final_link = urljoin(list_url, href)
                 
-                date_text = ''
-                date_elements = item.select('.date, .post-date, time, [class*="date"], [datetime]')
-                if date_elements:
-                    date_text = date_elements[0].get_text(strip=True)
-                    if not date_text and date_elements[0].get('datetime'):
-                        date_text = date_elements[0].get('datetime')
-                else:
-                    text = item.get_text()
-                    date_match = re.search(r'(\d{4}[.-]\d{2}[.-]\d{2})', text)
-                    if date_match:
-                        date_text = date_match.group(1)
-                
-                if not date_text:
-                    date_text = '날짜 없음'
+                # 날짜 추출 (부모 요소에서 찾기)
+                date_text = '날짜 없음'
+                parent = link_tag.parent
+                if parent:
+                    # 부모 요소에서 날짜 찾기
+                    date_elements = parent.select('.date, .post-date, time, [class*="date"], [datetime]')
+                    if date_elements:
+                        date_text = date_elements[0].get_text(strip=True)
+                        if not date_text and date_elements[0].get('datetime'):
+                            date_text = date_elements[0].get('datetime')
+                    else:
+                        # 텍스트에서 날짜 패턴 찾기
+                        text = parent.get_text()
+                        date_match = re.search(r'(\d{4}[.-]\d{2}[.-]\d{2})', text)
+                        if date_match:
+                            date_text = date_match.group(1)
                 
                 results.append({
                     'number': '',
@@ -471,17 +487,6 @@ def crawl_seoul_public_art():
 
     except Exception as e:
         print(f"Seoul 공공미술 공모 크롤링 에러 발생: {e}")
-        import traceback
-        traceback.print_exc()
-
-        except Exception as e:
-            print(f"  ⚠️ {list_url} 크롤링 에러: {e}")
-            import traceback
-            traceback.print_exc()
-            continue
-    
-    except Exception as e:
-        print(f"Seoul 크롤링 전체 에러 발생: {e}")
         import traceback
         traceback.print_exc()
 
