@@ -124,6 +124,10 @@ class _NoticeListPageState extends State<NoticeListPage> {
                 // 검색바
                 TextField(
                   controller: _searchController,
+                  keyboardType: TextInputType.text,
+                  textInputAction: TextInputAction.search,
+                  enableSuggestions: true,
+                  autocorrect: true,
                   decoration: InputDecoration(
                     hintText: '검색어를 입력하세요',
                     prefixIcon: const Icon(Icons.search),
@@ -150,6 +154,9 @@ class _NoticeListPageState extends State<NoticeListPage> {
                     setState(() {
                       _searchQuery = value;
                     });
+                  },
+                  onSubmitted: (value) {
+                    // 검색 실행 (필요시 추가 로직)
                   },
                 ),
                 const SizedBox(height: 8),
@@ -192,9 +199,8 @@ class _NoticeListPageState extends State<NoticeListPage> {
           // 공고 리스트
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('notices')
-                  .snapshots(),
+              stream:
+                  FirebaseFirestore.instance.collection('notices').snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -225,8 +231,10 @@ class _NoticeListPageState extends State<NoticeListPage> {
 
                 // 날짜로 정렬 (클라이언트 측에서)
                 sourceFilteredDocs.sort((a, b) {
-                  final dateA = (a.data() as Map<String, dynamic>)['date'] ?? '';
-                  final dateB = (b.data() as Map<String, dynamic>)['date'] ?? '';
+                  final dateA =
+                      (a.data() as Map<String, dynamic>)['date'] ?? '';
+                  final dateB =
+                      (b.data() as Map<String, dynamic>)['date'] ?? '';
                   return dateB.compareTo(dateA); // 내림차순
                 });
 
@@ -389,4 +397,3 @@ class _NoticeListPageState extends State<NoticeListPage> {
     );
   }
 }
-
