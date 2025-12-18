@@ -105,6 +105,21 @@ class _NoticeListPageState extends State<NoticeListPage> {
     }
   }
 
+  IconData _getSectionIcon() {
+    switch (widget.source) {
+      case 'LH':
+        return Icons.home;
+      case 'KAMS':
+        return Icons.palette;
+      case 'Seoul':
+        return Icons.location_city;
+      case 'SeoulPublicArt':
+        return Icons.brush;
+      default:
+        return Icons.info;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -214,6 +229,34 @@ class _NoticeListPageState extends State<NoticeListPage> {
               ],
             ),
           ),
+          // 섹션 제목
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              border: Border(
+                bottom: BorderSide(color: Colors.grey.shade200),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _getSectionIcon(),
+                  color: Colors.blue.shade700,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  widget.pageTitle,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade900,
+                  ),
+                ),
+              ],
+            ),
+          ),
           // 공고 리스트
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
@@ -311,8 +354,40 @@ class _NoticeListPageState extends State<NoticeListPage> {
                     final doc = filteredDocs[index];
                     final data = doc.data() as Map<String, dynamic>;
                     final title = data['title'] ?? '제목 없음';
-                    final date = data['date'] ?? '날짜 없음';
+                    String date = data['date'] ?? '날짜 없음';
                     final link = data['link'] ?? '';
+
+                    // 날짜가 없으면 created_at에서 추출
+                    if (date == '날짜 없음' || date.isEmpty) {
+                      final createdAt = data['created_at'];
+                      if (createdAt != null) {
+                        try {
+                          // Timestamp 객체인 경우
+                          DateTime dateTime;
+                          if (createdAt is Timestamp) {
+                            dateTime = createdAt.toDate();
+                          } else if (createdAt is Map) {
+                            // Firestore에서 가져온 경우
+                            final seconds =
+                                createdAt['_seconds'] ?? createdAt['seconds'];
+                            if (seconds != null) {
+                              dateTime = DateTime.fromMillisecondsSinceEpoch(
+                                  seconds * 1000);
+                            } else {
+                              dateTime = DateTime.now();
+                            }
+                          } else {
+                            dateTime = DateTime.now();
+                          }
+                          // YYYY-MM-DD 형식으로 변환
+                          date =
+                              '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
+                        } catch (e) {
+                          // 변환 실패 시 그대로 유지
+                          date = '날짜 없음';
+                        }
+                      }
+                    }
 
                     return Dismissible(
                       key: Key(doc.id),
@@ -351,6 +426,26 @@ class _NoticeListPageState extends State<NoticeListPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // 섹션 제목
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    widget.pageTitle,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade700,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
                                 // 날짜 배지
                                 Container(
                                   padding: const EdgeInsets.symmetric(

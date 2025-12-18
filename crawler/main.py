@@ -31,7 +31,7 @@ def send_fcm_notification(title, link, source='LH'):
         source_names = {
             'LH': 'LH 공모 알림',
             'KAMS': '예술경영지원센터 알림',
-            'Seoul': '서울특별시 알림',
+            'Seoul': '서울 공공디자인 알림',
             'SeoulPublicArt': '서울 공공미술 공모 알림'
         }
         source_name = source_names.get(source, '공모 알림')

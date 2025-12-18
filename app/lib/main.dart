@@ -47,7 +47,7 @@ class _MainPageState extends State<MainPage> {
     },
     {
       'source': 'Seoul',
-      'title': '서울특별시',
+      'title': '서울 공공디자인',
       'icon': Icons.location_city,
     },
     {
