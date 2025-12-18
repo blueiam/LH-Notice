@@ -4,7 +4,7 @@ import 'keyword_service.dart';
 class KeywordSettingsPage extends StatefulWidget {
   final String source;
 
-  const KeywordSettingsPage({super.key, this.source = 'LH'});
+  const KeywordSettingsPage({super.key, required this.source});
 
   @override
   State<KeywordSettingsPage> createState() => _KeywordSettingsPageState();
@@ -13,12 +13,14 @@ class KeywordSettingsPage extends StatefulWidget {
 class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
   List<String> _keywords = [];
   final TextEditingController _keywordController = TextEditingController();
-  bool _isLoading = true;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _loadKeywords();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadKeywords();
+    });
   }
 
   @override
@@ -28,23 +30,39 @@ class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
   }
 
   Future<void> _loadKeywords() async {
-    setState(() => _isLoading = true);
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       final keywords = await KeywordService.getKeywords(source: widget.source);
-      setState(() {
-        _keywords = keywords;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _keywords = keywords;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
-      _showSnackBar('키워드 로드 오류: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _keywords = [];
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('키워드 로드 오류: $e')),
+        );
+      }
     }
   }
 
   Future<void> _addKeyword() async {
     final keyword = _keywordController.text.trim();
     if (keyword.isEmpty) {
-      _showSnackBar('키워드를 입력해주세요.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('키워드를 입력해주세요.')),
+      );
       return;
     }
 
@@ -54,24 +72,34 @@ class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
       if (success) {
         _keywordController.clear();
         await _loadKeywords();
-        _showSnackBar('키워드가 추가되었습니다.');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('키워드가 추가되었습니다.')),
+          );
+        }
       } else {
-        // 중복 체크를 위해 현재 키워드 목록 확인
         final currentKeywords =
             await KeywordService.getKeywords(source: widget.source);
         if (currentKeywords.contains(keyword)) {
-          _showSnackBar('이미 등록된 키워드입니다.');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('이미 등록된 키워드입니다.')),
+          );
         } else {
-          _showSnackBar('키워드 저장에 실패했습니다. 다시 시도해주세요.');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('키워드 저장에 실패했습니다. 다시 시도해주세요.')),
+          );
         }
       }
     } catch (e) {
-      _showSnackBar('오류가 발생했습니다: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류가 발생했습니다: $e')),
+        );
+      }
     }
   }
 
   Future<void> _deleteKeyword(String keyword) async {
-    // 삭제 확인 다이얼로그
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -98,20 +126,24 @@ class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
           await KeywordService.deleteKeyword(keyword, source: widget.source);
       if (success) {
         await _loadKeywords();
-        _showSnackBar('키워드가 삭제되었습니다.');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('키워드가 삭제되었습니다.')),
+          );
+        }
       } else {
-        _showSnackBar('키워드 삭제에 실패했습니다. 다시 시도해주세요.');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('키워드 삭제에 실패했습니다. 다시 시도해주세요.')),
+          );
+        }
       }
     } catch (e) {
-      _showSnackBar('오류가 발생했습니다: $e');
-    }
-  }
-
-  void _showSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류가 발생했습니다: $e')),
+        );
+      }
     }
   }
 
@@ -119,130 +151,131 @@ class _KeywordSettingsPageState extends State<KeywordSettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('관심 키워드 설정 (${widget.source})',
-            style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          '관심 키워드 설정 (${widget.source})',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
         elevation: 2,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
       ),
-      body: Column(
-        children: [
-          // 키워드 입력 영역
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              border: Border(
-                bottom: BorderSide(color: Colors.grey.shade200),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 키워드 입력 영역
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                border: Border(
+                  bottom: BorderSide(color: Colors.grey.shade200),
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _keywordController,
-                    // keyboardType을 명시하지 않으면 기본값으로 모든 입력 허용
-                    textInputAction: TextInputAction.done,
-                    enableSuggestions: true,
-                    autocorrect: true,
-                    enableInteractiveSelection: true,
-                    maxLines: 1,
-                    style: const TextStyle(fontSize: 16),
-                    // 한글 입력을 명시적으로 허용
-                    inputFormatters: null, // 제한 없음
-                    decoration: InputDecoration(
-                      hintText: '키워드를 입력하세요',
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _keywordController,
+                      keyboardType: TextInputType.name,
+                      textInputAction: TextInputAction.done,
+                      enableSuggestions: true,
+                      autocorrect: true,
+                      enableInteractiveSelection: true,
+                      style: const TextStyle(fontSize: 16),
+                      decoration: InputDecoration(
+                        hintText: '키워드를 입력하세요',
+                        hintStyle: TextStyle(color: Colors.grey.shade400),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: Colors.blue.shade400, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            BorderSide(color: Colors.blue.shade400, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
+                      onSubmitted: (_) => _addKeyword(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _addKeyword,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
                         vertical: 12,
                       ),
-                      filled: true,
-                      fillColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    onSubmitted: (_) => _addKeyword(),
+                    child: const Text('추가'),
                   ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _addKeyword,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('추가'),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          // 키워드 목록
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _keywords.isEmpty
-                    ? const Center(
-                        child: Text(
-                          '등록된 키워드가 없습니다.\n위에서 키워드를 추가해주세요.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 16,
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _keywords.length,
-                        itemBuilder: (context, index) {
-                          final keyword = _keywords[index];
-                          return Card(
-                            elevation: 1,
-                            margin: const EdgeInsets.only(bottom: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+            // 키워드 목록
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _keywords.isEmpty
+                      ? const Center(
+                          child: Text(
+                            '등록된 키워드가 없습니다.\n위에서 키워드를 추가해주세요.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 16,
                             ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _keywords.length,
+                          itemBuilder: (context, index) {
+                            final keyword = _keywords[index];
+                            return Card(
+                              elevation: 1,
+                              margin: const EdgeInsets.only(bottom: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              title: Text(
-                                keyword,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                title: Text(
+                                  keyword,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  color: Colors.red,
+                                  onPressed: () => _deleteKeyword(keyword),
                                 ),
                               ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline),
-                                color: Colors.red,
-                                onPressed: () => _deleteKeyword(keyword),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-          ),
-        ],
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
       ),
     );
   }

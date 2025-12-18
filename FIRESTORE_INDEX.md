@@ -71,3 +71,4 @@ FirebaseFirestore.instance
 - 인덱스가 생성되기 전까지는 쿼리가 실패할 수 있습니다
 - 각 소스(LH, KAMS, Seoul)별로 동일한 인덱스를 사용합니다
 
+

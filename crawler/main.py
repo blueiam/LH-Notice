@@ -291,7 +291,7 @@ def crawl_kams_notice():
         traceback.print_exc()
 
 def crawl_seoul_notice():
-    """서울특별시 크롤링 (디자인 뉴스)"""
+    """서울 공공디자인 크롤링 (디자인 뉴스)"""
     list_url = "https://news.seoul.go.kr/culture/archives/category/design-news_c1/business_design_c1/news_design-news-n1"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'

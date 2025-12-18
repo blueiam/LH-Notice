@@ -3,8 +3,6 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
-    
-    // ★★★ [중요] Firebase 플러그인 (잘 추가하셨습니다!) ★★★
     id("com.google.gms.google-services")
 }
 
@@ -16,19 +14,20 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        // [수정] 가장 확실한 문법인 문자열 "17"로 변경
+        jvmTarget = "17"
     }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.lh_notice"
         
-        // ★★★ [수정함] Firebase 에러 방지를 위해 23으로 고정 ★★★
-        // minSdk = flutter.minSdkVersion  <-- 기존 코드는 주석 처리
-        minSdk = flutter.minSdkVersion 
+        // [수정] Firebase 및 최신 라이브러리 호환을 위해 23으로 직접 지정
+        minSdk = flutter.minSdkVersion
         
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -42,6 +41,11 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+dependencies {
+    // [중요] 버전 2.1.4 확인 완료
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {

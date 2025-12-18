@@ -27,10 +27,73 @@ You are a senior developer who values stability above all else. When modifying c
 - If you notice a bug in unrelated code, point it out in the comments, but DO NOT fix it automatically.
 
 
-
-(위의 영어 내용 아래에 추가)
-
 # 한국어 지침
 - 답변은 한국어로 해주세요.
 - 코드를 수정할 때는 반드시 기존 코드의 스타일(들여쓰기, 네이밍 컨벤션)을 유지하세요.
 - 내가 시키지 않은 코드는 절대 건드리지 마세요. (주석 포함)
+
+
+# Design System Specification (Modern Blue Theme)
+
+Please apply the following design system to all Flutter UI components.
+
+## 1. Color Palette
+Use a consistent color scheme based on the primary blue color.
+- **Primary Color:** `Color(0xFF268BD3)` (Main Brand Color)
+- **Secondary/Accent:** `Color(0xFFE3F2FD)` (Light Blue for backgrounds/tints)
+- **Background:** `Color(0xFFF8F9FA)` (Very light gray for app background - easier on eyes than pure white)
+- **Surface (Card):** `Color(0xFFFFFFFF)` (Pure white for cards/modals)
+- **Text (Primary):** `Color(0xFF191F28)` (Almost black, high contrast)
+- **Text (Secondary):** `Color(0xFF8B95A1)` (Gray for subtitles/dates)
+- **Error/Delete:** `Color(0xFFFF4D4F)` (Soft Red for alerts/delete actions)
+
+## 2. Typography
+Use **'Google Fonts: Noto Sans KR'** for all text to ensure legibility and modern feel.
+- **Headings (AppBar/Page Titles):** `fontSize: 20`, `fontWeight: FontWeight.w700`, `color: Text Primary`
+- **Subtitles (Card Titles):** `fontSize: 16`, `fontWeight: FontWeight.w600`, `color: Text Primary`
+- **Body Text:** `fontSize: 14`, `fontWeight: FontWeight.w400`, `color: Text Primary`
+- **Caption/Date:** `fontSize: 12`, `fontWeight: FontWeight.w400`, `color: Text Secondary`
+
+## 3. UI Components Style (Modern & Trendy)
+
+### A. Cards (Notice Item)
+Create a "Floating" card style that feels touchable.
+- **Shape:** `RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))`
+- **Elevation:** 0 (Flat style) but use a subtle shadow or border.
+- **Decoration:**
+  - `color: Surface (White)`
+  - `boxShadow`: `[BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: Offset(0, 4))]`
+  - OR `border`: `Border.all(color: Colors.grey.withOpacity(0.1))`
+- **Padding:** Internal padding of `16.0` or `20.0`.
+
+### B. Buttons
+- **Elevated Button (Primary Action):**
+  - Background: `Primary Color (#268BD3)`
+  - Text Color: `White`
+  - Shape: `RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))`
+  - Height: `50.0` (Touch-friendly size)
+  - Elevation: 0 (No drop shadow, flat look)
+- **Icon Button:**
+  - Color: `Text Primary` or `Primary Color` based on context.
+
+### C. Input Fields (Search Bar)
+- **Style:** Filled but soft.
+- **Fill Color:** `Colors.white`
+- **Border:** `OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)`
+- **Shadow:** Same soft shadow as Cards.
+
+## 4. Layout & Spacing
+- **Page Padding:** `horizontal: 20.0`, `vertical: 16.0`
+- **List Item Spacing:** `SizedBox(height: 12.0)` between cards.
+- **Safe Area:** Always wrap the main body in `SafeArea`.
+
+## 5. Interaction
+- **Swipe to Delete:**
+  - Background: `Error Color (#FF4D4F)`
+  - Icon: `Icons.delete_outline` (White)
+  - Alignment: Right side alignment.
+
+---
+**Implementation Note:**
+- Ensure `google_fonts` package is added to `pubspec.yaml`.
+- Use `ThemeData` in `main.dart` to apply these styles globally where possible.
