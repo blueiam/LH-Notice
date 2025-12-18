@@ -393,13 +393,14 @@ def crawl_seoul_notice():
         traceback.print_exc()
 
 def crawl_seoul_public_art():
-    """서울 공공미술 공모 크롤링"""
-    list_url = "https://news.seoul.go.kr/culture/archives/category/public-art_c1/news_public-art-n1"
+    """서울 공공미술 공모 크롤링 (디자인 뉴스에서 공공미술 공모 필터링)"""
+    # 공공미술 공모는 디자인 뉴스 페이지에 포함되어 있음
+    list_url = "https://news.seoul.go.kr/culture/archives/category/design-news_c1/business_design_c1/news_design-news-n1"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
-    print(f"--- Seoul 공공미술 공모 크롤링 시작: {list_url} ---")
+    print(f"--- Seoul 공공미술 공모 크롤링 시작 (디자인 뉴스에서 필터링) ---")
     
     try:
         response = requests.get(list_url, headers=headers, timeout=15)
@@ -407,23 +408,11 @@ def crawl_seoul_public_art():
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # 여러 선택자 시도
+        # ul li a[href*="archives"] 선택자 사용
         archive_links = soup.select('ul li a[href*="archives"]')
-        
-        # archives 링크가 없으면 모든 링크에서 찾기
-        if not archive_links:
-            all_links = soup.find_all('a', href=True)
-            for link in all_links:
-                href = link.get('href', '')
-                text = link.get_text(strip=True)
-                # 공공미술 공모 관련 링크 찾기
-                if ('/archives/' in href or 'public-art' in href) and text and len(text) > 5:
-                    # 의미있는 텍스트가 있는 링크만
-                    archive_links.append(link)
         
         if not archive_links:
             print("❌ Seoul 공공미술 공모 게시물을 찾을 수 없습니다.")
-            print("  참고: 공공미술 공모 페이지가 비어있거나 구조가 다를 수 있습니다.")
             return
 
         results = []
@@ -433,6 +422,11 @@ def crawl_seoul_public_art():
                 title = link_tag.get_text(strip=True)
                 
                 if not title or not href or len(title) < 5:
+                    continue
+                
+                # 공공미술 공모 관련 키워드 필터링
+                public_art_keywords = ['공공미술', '미술작품', '조형물', '공모', '설치', '작가']
+                if not any(keyword in title for keyword in public_art_keywords):
                     continue
                 
                 # archives/숫자 형태인지 확인
