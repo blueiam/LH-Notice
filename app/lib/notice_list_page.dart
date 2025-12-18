@@ -124,12 +124,15 @@ class _NoticeListPageState extends State<NoticeListPage> {
                 // 검색바
                 TextField(
                   controller: _searchController,
-                  keyboardType: TextInputType.text,
+                  keyboardType: TextInputType.name, // 한글 입력을 위한 타입 변경
                   textInputAction: TextInputAction.search,
                   enableSuggestions: true,
                   autocorrect: true,
+                  enableInteractiveSelection: true,
+                  style: const TextStyle(fontSize: 16),
                   decoration: InputDecoration(
                     hintText: '검색어를 입력하세요',
+                    hintStyle: TextStyle(color: Colors.grey.shade400),
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
@@ -144,11 +147,22 @@ class _NoticeListPageState extends State<NoticeListPage> {
                         : null,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 12,
                     ),
+                    filled: true,
+                    fillColor: Colors.white,
                   ),
                   onChanged: (value) {
                     setState(() {
